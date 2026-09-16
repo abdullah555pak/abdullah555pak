@@ -30,3 +30,4 @@ ai-seo-analyzer/apps/web/CLAUDE.md
 coverage/
 dist/
 build/
+*.tsbuildinfo
