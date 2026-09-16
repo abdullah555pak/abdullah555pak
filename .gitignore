@@ -1,0 +1,32 @@
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# --- Env files (never commit real secrets) ---
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- OS / editor ---
+.DS_Store
+*.swp
+
+# --- Next.js auto-generated agent-rules files (disabled via agentRules:
+# false in next.config.mjs; ignored here in case one is ever regenerated) ---
+ai-seo-analyzer/apps/web/AGENTS.md
+ai-seo-analyzer/apps/web/CLAUDE.md
+
+# --- Coverage / build artifacts ---
+coverage/
+dist/
+build/

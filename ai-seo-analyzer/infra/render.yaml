@@ -1,0 +1,20 @@
+# Placeholder deployment config for Render (see docs/BLUEPRINT.md, Section U).
+# Not used yet - no deployment has been done as part of this foundation step.
+# Filled in and applied when we actually deploy, in a later development stage.
+
+services:
+  - type: web
+    name: sitewell-api
+    runtime: docker
+    dockerfilePath: ../apps/api/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+
+  - type: worker
+    name: sitewell-worker
+    runtime: docker
+    dockerfilePath: ../apps/api/Dockerfile
+    dockerCommand: celery -A app.core.celery_app.celery_app worker --loglevel=info
