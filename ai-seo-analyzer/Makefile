@@ -1,4 +1,4 @@
-.PHONY: api-install api-dev api-test api-migrate web-install web-dev web-test web-build
+.PHONY: api-install api-dev api-test api-migrate api-worker web-install web-dev web-test web-build
 
 # --- Backend ---
 api-install:

@@ -2,9 +2,10 @@
 
 Status: **project foundation only.** There is no crawler, SEO engine, or AI
 analysis yet — see `docs/BLUEPRINT.md` for the full product/architecture
-plan and its phased roadmap. This README covers what exists today: a
-Next.js frontend, a FastAPI backend with one real endpoint (URL safety
-validation), and the scaffolding both will grow into.
+plan and its phased roadmap, and `DEVELOPMENT_STATUS.md` for a current,
+one-page snapshot of what's done vs. not yet built. This README covers
+what exists today: a Next.js frontend, a FastAPI backend with one real
+endpoint (URL safety validation), and the scaffolding both will grow into.
 
 ## What's actually here right now
 
