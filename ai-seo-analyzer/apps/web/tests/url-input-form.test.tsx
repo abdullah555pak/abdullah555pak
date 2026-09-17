@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { URLInputForm } from "@/components/forms/URLInputForm";
 
 function getInput() {
-  return screen.getByPlaceholderText(/yourwebsite\.com/i);
+  return screen.getByPlaceholderText(/e\.g\. example\.com/i);
 }
 function getSubmitButton() {
   return screen.getByRole("button", { name: /analyze website/i });

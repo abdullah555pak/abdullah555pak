@@ -69,61 +69,60 @@ export function URLInputForm({ initialValue = "" }: URLInputFormProps) {
 
   return (
     <div>
-      <form
-        onSubmit={handleSubmit}
-        noValidate
-        className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 shadow-sm sm:flex-row"
-      >
-        <div className="relative min-w-0 flex-1">
-          <label htmlFor={inputId} className="sr-only">
-            Website address
-          </label>
-          <input
-            id={inputId}
-            name="website-url"
-            type="text"
-            inputMode="url"
-            autoComplete="off"
-            placeholder="yourwebsite.com"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            aria-describedby={helpId}
-            aria-invalid={result?.kind === "invalid" ? true : undefined}
-            className="min-h-[44px] w-full rounded-lg border border-border bg-surface px-4 py-3 pr-10 text-base text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
-          />
-          {value.length > 0 && (
-            <button
-              type="button"
-              onClick={handleClear}
-              aria-label="Clear website address"
-              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                <path
-                  d="M6 6l12 12M18 6L6 18"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          )}
-        </div>
-        <Button type="submit" disabled={loading} aria-busy={loading}>
-          {loading ? (
-            <>
-              <Spinner />
-              Starting analysis...
-            </>
-          ) : (
-            "Analyze Website"
-          )}
-        </Button>
-      </form>
+      <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+        <label htmlFor={inputId} className="mb-2 block text-sm font-semibold text-ink-soft">
+          Website address
+        </label>
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative min-w-0 flex-1">
+            <input
+              id={inputId}
+              name="website-url"
+              type="text"
+              inputMode="url"
+              autoComplete="off"
+              placeholder="e.g. example.com"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              aria-describedby={helpId}
+              aria-invalid={result?.kind === "invalid" ? true : undefined}
+              className="min-h-[44px] w-full rounded-lg border border-border bg-surface px-4 py-3 pr-10 text-base text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
+            />
+            {value.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClear}
+                aria-label="Clear website address"
+                className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                  <path
+                    d="M6 6l12 12M18 6L6 18"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            )}
+          </div>
+          <Button type="submit" disabled={loading} aria-busy={loading}>
+            {loading ? (
+              <>
+                <Spinner />
+                Starting analysis...
+              </>
+            ) : (
+              "Analyze Website"
+            )}
+          </Button>
+        </form>
+      </div>
 
       <p id={helpId} className="mt-2 px-1 text-xs text-muted">
-        Enter your website address, e.g. <code className="font-mono">example.com</code>. You don't
-        need to type &quot;https://&quot; — we&apos;ll use a secure connection automatically.
+        You don&apos;t need to type &quot;https://&quot; — we&apos;ll use a secure connection
+        automatically. We&apos;ll check things like your page titles, site speed, and
+        mobile-friendliness.
       </p>
 
       {result &&

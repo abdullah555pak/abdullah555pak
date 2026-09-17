@@ -16,7 +16,7 @@ describe("Homepage", () => {
       screen.getByText(/we'll check it for problems, explain them in plain language/i)
     ).toBeInTheDocument();
 
-    expect(screen.getByPlaceholderText(/yourwebsite\.com/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/e\.g\. example\.com/i)).toBeInTheDocument();
 
     // Exactly one primary ("Analyze Website") action button on the page.
     const analyzeButtons = screen.getAllByRole("button", { name: /analyze website/i });
