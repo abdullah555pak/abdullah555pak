@@ -2,6 +2,11 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { URLInputForm } from "@/components/forms/URLInputForm";
 
+const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock }),
+}));
+
 function getInput() {
   return screen.getByPlaceholderText(/e\.g\. example\.com/i);
 }
@@ -11,7 +16,7 @@ function getSubmitButton() {
 
 describe("URLInputForm", () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    pushMock.mockClear();
   });
 
   it("has a labeled field, helper text, and no clear button when empty", () => {
@@ -21,26 +26,25 @@ describe("URLInputForm", () => {
     expect(screen.queryByRole("button", { name: /clear website address/i })).not.toBeInTheDocument();
   });
 
-  it("rejects an empty submission with a beginner-friendly message and never calls the API", async () => {
-    const fetchSpy = vi.spyOn(global, "fetch");
+  it("rejects an empty submission with a beginner-friendly message and never navigates", () => {
     render(<URLInputForm />);
-
     fireEvent.click(getSubmitButton());
 
     expect(
-      await screen.findByText(/please enter a website address, such as example\.com or https:\/\/example\.com/i)
+      screen.getByText(/please enter a website address, such as example\.com or https:\/\/example\.com/i)
     ).toBeInTheDocument();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
-  it("rejects malformed input with the exact beginner-friendly pattern, not a technical message", async () => {
+  it("rejects malformed input with the exact beginner-friendly pattern, not a technical message", () => {
     render(<URLInputForm />);
     fireEvent.change(getInput(), { target: { value: "not a url" } });
     fireEvent.click(getSubmitButton());
 
-    const error = await screen.findByRole("alert");
+    const error = screen.getByRole("alert");
     expect(error).toHaveTextContent("Please enter a complete website address, such as https://example.com");
     expect(error.textContent).not.toMatch(/invalid url format/i);
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   it("shows and uses a clear button once text is entered", () => {
@@ -54,78 +58,23 @@ describe("URLInputForm", () => {
     expect(screen.queryByRole("button", { name: /clear website address/i })).not.toBeInTheDocument();
   });
 
-  it("shows the 'Starting analysis...' loading label and disables the button while the request is in flight", async () => {
-    let resolveFetch: (value: Response) => void = () => {};
-    vi.spyOn(global, "fetch").mockReturnValue(
-      new Promise((resolve) => {
-        resolveFetch = resolve;
-      })
-    );
-
+  it("navigates to the scan screen with the encoded URL on a valid submission, and shows a loading state", () => {
     render(<URLInputForm />);
+    fireEvent.change(getInput(), { target: { value: "example.com/some page" } });
+    fireEvent.click(getSubmitButton());
+
+    expect(pushMock).toHaveBeenCalledWith("/scan?url=" + encodeURIComponent("example.com/some page"));
+    expect(screen.getByRole("button", { name: /starting analysis/i })).toBeDisabled();
+  });
+
+  it("clears a previous validation error once a valid URL is submitted", () => {
+    render(<URLInputForm />);
+    fireEvent.click(getSubmitButton());
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+
     fireEvent.change(getInput(), { target: { value: "example.com" } });
     fireEvent.click(getSubmitButton());
 
-    const loadingButton = await screen.findByRole("button", { name: /starting analysis/i });
-    expect(loadingButton).toBeDisabled();
-
-    resolveFetch(
-      new Response(JSON.stringify({ error: { code: "not_implemented", message: "not built yet" } }), {
-        status: 501,
-      })
-    );
-
-    // Let the resolved fetch settle so React state updates happen inside act().
-    await screen.findByRole("button", { name: /^analyze website$/i });
-  });
-
-  it("shows a clear development state for a safe URL, never a fake result", async () => {
-    vi.spyOn(global, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          error: { code: "not_implemented", message: "Website analysis isn't built yet." },
-        }),
-        { status: 501 }
-      )
-    );
-
-    render(<URLInputForm />);
-    fireEvent.change(getInput(), { target: { value: "example.com" } });
-    fireEvent.click(getSubmitButton());
-
-    const status = await screen.findByRole("status");
-    expect(status).toHaveTextContent(/hasn't been built yet/i);
-    expect(screen.queryByText(/\d+\s*\/\s*100/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/score/i)).not.toBeInTheDocument();
-  });
-
-  it("shows the backend's specific rejection message for an unsafe URL", async () => {
-    vi.spyOn(global, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          error: {
-            code: "invalid_url",
-            message: "That address points to a private or internal network and can't be analyzed.",
-          },
-        }),
-        { status: 400 }
-      )
-    );
-
-    render(<URLInputForm />);
-    fireEvent.change(getInput(), { target: { value: "127.0.0.1" } });
-    fireEvent.click(getSubmitButton());
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(/private or internal network/i);
-  });
-
-  it("shows a plain network error, never a silent failure, when the API is unreachable", async () => {
-    vi.spyOn(global, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
-
-    render(<URLInputForm />);
-    fireEvent.change(getInput(), { target: { value: "example.com" } });
-    fireEvent.click(getSubmitButton());
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't reach the sitewell server/i);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

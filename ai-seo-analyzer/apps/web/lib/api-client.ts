@@ -13,17 +13,22 @@ export type AnalyzeResult =
   | { kind: "invalid"; message: string }
   | { kind: "not_implemented"; message: string }
   | { kind: "unexpected_error"; message: string }
-  | { kind: "network_error"; message: string };
+  | { kind: "network_error"; message: string }
+  | { kind: "cancelled" };
 
-export async function analyzeWebsite(url: string): Promise<AnalyzeResult> {
+export async function analyzeWebsite(url: string, signal?: AbortSignal): Promise<AnalyzeResult> {
   let response: Response;
   try {
     response = await fetch(`${API_URL}/v1/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
+      signal,
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return { kind: "cancelled" };
+    }
     return {
       kind: "network_error",
       message: "We couldn't reach the Sitewell server. Is the API running?",

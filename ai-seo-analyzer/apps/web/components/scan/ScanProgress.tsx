@@ -1,97 +1,72 @@
-export interface ScanStage {
-  id: string;
-  label: string;
-}
-
-export const DEFAULT_SCAN_STAGES: ScanStage[] = [
-  { id: "checking-website", label: "Checking website" },
-  { id: "finding-pages", label: "Finding pages" },
-  { id: "checking-technical-seo", label: "Checking technical SEO" },
-  { id: "checking-performance", label: "Checking performance" },
-  { id: "analyzing-content", label: "Analyzing content" },
-  { id: "preparing-report", label: "Preparing report" },
-];
+import type { ScanStageState } from "@/lib/scan-stages";
+import { ScanStageRow } from "./ScanStage";
 
 export interface ScanProgressProps {
-  stages?: ScanStage[];
-  /** -1 = not started yet, stages.length = every stage done */
-  currentIndex: number;
-  targetLabel?: string;
+  stages: ScanStageState[];
+}
+
+function summarize(stages: ScanStageState[]) {
+  const completed = stages.filter((s) => s.status === "completed").length;
+  const failed = stages.filter((s) => s.status === "failed").length;
+  const running = stages.find((s) => s.status === "running");
+  const trackable = stages.filter((s) => s.status !== "not_available").length;
+  const finished = stages.filter(
+    (s) => s.status === "completed" || s.status === "failed" || s.status === "skipped"
+  ).length;
+  // Only ever a real fraction of stages that have actually finished -
+  // never a fabricated percentage. Before anything has finished there's
+  // nothing real to report yet, so stay indeterminate rather than show
+  // a static, seemingly-stuck 0%.
+  const percent = trackable > 0 && finished > 0 ? Math.round((finished / trackable) * 100) : null;
+  return { completed, failed, running, percent, finished, trackable };
 }
 
 /**
- * Visual structure for a future scan-progress screen. Purely
- * presentational - it shows whatever `currentIndex` it's given and makes
- * no claim about real work happening unless a caller wires it to one
- * (nothing in the app does yet; see app/preview for a labeled demo).
+ * Renders whatever stage states it's given. It never decides on its own
+ * that a stage is running - the caller (today: only app/preview, since
+ * no real backend drives this yet) is responsible for that being true.
  */
-export function ScanProgress({
-  stages = DEFAULT_SCAN_STAGES,
-  currentIndex,
-  targetLabel,
-}: ScanProgressProps) {
-  const doneCount = Math.max(0, Math.min(currentIndex, stages.length));
-  const percent = Math.round((doneCount / stages.length) * 100);
+export function ScanProgress({ stages }: ScanProgressProps) {
+  const { running, percent, finished, trackable } = summarize(stages);
 
   return (
-    <div className="mx-auto max-w-md text-center">
-      <h2 className="font-display text-xl font-semibold text-ink">Analyzing your website</h2>
-      {targetLabel && (
-        <p className="mt-1 text-sm text-muted">
-          Scanning <span className="font-semibold text-ink">{targetLabel}</span>
-        </p>
+    <div>
+      {percent === null ? (
+        <div
+          className="h-1.5 overflow-hidden rounded-full bg-surface-2"
+          role="progressbar"
+          aria-label="Scan progress"
+        >
+          <div className="h-full w-1/3 animate-pulse rounded-full bg-accent" />
+        </div>
+      ) : (
+        <div
+          className="h-1.5 overflow-hidden rounded-full bg-surface-2"
+          role="progressbar"
+          aria-valuenow={percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Scan progress"
+        >
+          <div
+            className="h-full rounded-full bg-accent transition-all duration-500"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
       )}
 
-      <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden="true">
-        <div
-          className="h-full rounded-full bg-accent transition-all duration-500"
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-
-      <ol className="mt-5 flex flex-col gap-1 rounded-2xl border border-border bg-surface p-2 text-left shadow-sm">
-        {stages.map((stage, index) => {
-          const state = index < currentIndex ? "done" : index === currentIndex ? "active" : "pending";
-          return (
-            <li key={stage.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
-              <span
-                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
-                  state === "pending"
-                    ? "border-border"
-                    : state === "active"
-                      ? "border-accent"
-                      : "border-accent bg-accent"
-                }`}
-                aria-hidden="true"
-              >
-                {state === "done" && (
-                  <svg viewBox="0 0 24 24" className="h-3 w-3 text-white" fill="none">
-                    <path
-                      d="M5 13l4 4L19 7"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                )}
-              </span>
-              <span
-                className={`text-sm font-medium ${state === "pending" ? "text-muted" : "text-ink"}`}
-              >
-                {stage.label}
-              </span>
-            </li>
-          );
-        })}
+      <ol className="mt-4 flex flex-col divide-y divide-border rounded-2xl border border-border bg-surface p-2 text-left shadow-sm">
+        {stages.map((stage) => (
+          <ScanStageRow key={stage.id} stage={stage} />
+        ))}
       </ol>
 
       <p className="sr-only" role="status">
-        {currentIndex >= stages.length
-          ? "Scan complete."
-          : currentIndex < 0
-            ? "Scan not started."
-            : `Step ${currentIndex + 1} of ${stages.length}: ${stages[currentIndex]?.label}, in progress.`}
+        {running
+          ? `${running.label}, in progress.`
+          : percent !== null
+            ? `${finished} of ${trackable} stages finished.`
+            : "Scan stages ready."}
       </p>
     </div>
   );
