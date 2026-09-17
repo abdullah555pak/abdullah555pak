@@ -49,4 +49,16 @@ describe("Homepage", () => {
     // No fake SEO score, e.g. "62/100", should ever be rendered.
     expect(screen.queryByText(/\d+\s*\/\s*100/)).not.toBeInTheDocument();
   });
+
+  it("shows a plain network error, never a silent failure or fake result, when the API is unreachable", async () => {
+    vi.spyOn(global, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+
+    render(<Home />);
+    fireEvent.change(screen.getByPlaceholderText(/yourwebsite\.com/i), {
+      target: { value: "example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /analyze website/i }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(/couldn't reach the sitewell server/i);
+  });
 });

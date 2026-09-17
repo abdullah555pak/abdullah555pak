@@ -19,7 +19,7 @@ router = APIRouter(tags=["analyze"])
 @router.post("/analyze", response_model=AnalyzeAcceptedResponse)
 async def analyze_website(payload: AnalyzeRequest) -> AnalyzeAcceptedResponse:
     # Raises UnsafeURLError (-> HTTP 400) for anything invalid or unsafe.
-    normalized_url = validate_public_url(payload.url)
+    validate_public_url(payload.url)
 
     raise NotImplementedFeatureError(
         "Website analysis isn't built yet. We checked that this address is "
