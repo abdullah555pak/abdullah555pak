@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ConfidenceBadge, type ConfidenceLevel } from "@/components/ui/ConfidenceBadge";
 import { PriorityBadge, type PriorityLevel } from "@/components/ui/PriorityBadge";
+import { SeverityBadge, SEVERITY_ORDER } from "@/components/ui/SeverityBadge";
 import { GlossaryTerm } from "@/components/ui/GlossaryTerm";
 import { ScanProgress } from "@/components/scan/ScanProgress";
 import { ScanHeader } from "@/components/scan/ScanHeader";
@@ -21,8 +22,18 @@ import { CancelScanDialog } from "@/components/scan/CancelScanDialog";
 import { ScanSummary } from "@/components/scan/ScanSummary";
 import { SCAN_STAGE_DEFINITIONS, initialStageStates, type ScanStageState } from "@/lib/scan-stages";
 import type { ScanPhase } from "@/lib/scan-machine";
-import { IssueCard } from "@/components/results/IssueCard";
-import { ResultsLayout } from "@/components/results/ResultsLayout";
+import { REPORT_CATEGORIES, type ReportIssue } from "@/lib/report-types";
+import { ReportHeader } from "@/components/report/ReportHeader";
+import { ReportNavigation, type ReportNavItem } from "@/components/report/ReportNavigation";
+import { HealthSummary } from "@/components/report/HealthSummary";
+import { PrioritySummary } from "@/components/report/PrioritySummary";
+import { CategoryReportCard } from "@/components/report/CategoryReportCard";
+import { IssueSearch } from "@/components/report/IssueSearch";
+import { IssueFilters } from "@/components/report/IssueFilters";
+import { IssueList } from "@/components/report/IssueList";
+import { IssueDetailPanel } from "@/components/report/IssueDetailPanel";
+import { ReportStatusMessage } from "@/components/report/ReportStatusMessage";
+import { useIssueFilters } from "@/hooks/useIssueFilters";
 
 const SCAN_PHASES: ScanPhase[] = [
   "idle",
@@ -46,6 +57,32 @@ function stagesAtStep(step: number): ScanStageState[] {
 const PRIORITIES: PriorityLevel[] = ["critical", "important", "improvement", "good"];
 const CONFIDENCES: ConfidenceLevel[] = ["verified", "estimated", "detected", "unavailable"];
 
+// Template content only - not a real SEO finding. Used exclusively to
+// review the report components' layout, never rendered on a real page.
+const TEMPLATE_ISSUES: ReportIssue[] = SEVERITY_ORDER.map((severity, index) => ({
+  id: `template-${index}`,
+  title: "Example issue title goes here",
+  shortExplanation: "Example one-line explanation goes here.",
+  whyItMatters: "Example explanation of why this would matter goes here.",
+  severity,
+  category: REPORT_CATEGORIES[index % REPORT_CATEGORIES.length].id,
+  affectedPages: (index + 1) * 2,
+  evidence: "Example technical detail text goes here.",
+  confidence: CONFIDENCES[index % CONFIDENCES.length],
+  fixAvailable: index % 2 === 0,
+  howToFix: ["Example step 1.", "Example step 2."],
+  difficulty: "easy",
+  expectedImpact: "medium",
+  detectedAt: "2026-01-01",
+}));
+
+const REPORT_NAV_ITEMS: ReportNavItem[] = [
+  { id: "overview", label: "Overview" },
+  { id: "problems", label: "Problems" },
+  ...REPORT_CATEGORIES.map((c) => ({ id: c.id, label: c.title })),
+  { id: "action-plan", label: "Action Plan" },
+];
+
 /**
  * Internal, development-only component gallery. Not linked from any
  * real navigation. Everything below is example/template content for
@@ -56,6 +93,8 @@ export default function PreviewPage() {
   const [stages, setStages] = useState<ScanStageState[]>(() => initialStageStates());
   const [playing, setPlaying] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [navActive, setNavActive] = useState("overview");
+  const filters = useIssueFilters(TEMPLATE_ISSUES);
 
   useEffect(() => {
     if (!playing) return;
@@ -109,6 +148,11 @@ export default function PreviewPage() {
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {PRIORITIES.map((level) => (
             <PriorityBadge key={level} level={level} />
+          ))}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {SEVERITY_ORDER.map((level) => (
+            <SeverityBadge key={level} severity={level} />
           ))}
         </div>
 
@@ -214,34 +258,96 @@ export default function PreviewPage() {
           <ScanSummary />
         </Card>
 
-        <SectionHeader title="Issue card" />
+        <SectionHeader title="Report status messages" />
         <p className="mb-3 text-xs text-muted">
-          Template content below (not a real SEO finding), showing one example per priority
-          level.
+          Every "nothing to show" state the report can be in - note "no matches" reads
+          differently from "not available yet."
         </p>
-        <Card className="divide-y divide-border p-0">
-          <div className="px-5">
-            {PRIORITIES.map((priority, index) => (
-              <IssueCard
-                key={priority}
-                title="Issue title goes here"
-                priority={priority}
-                confidence={CONFIDENCES[index]}
-                whyItMatters="Explanation of why this issue matters goes here."
-                evidence="Example technical detail text goes here."
-                fixSteps={["Step 1 goes here.", "Step 2 goes here.", "Step 3 goes here."]}
-                verifyMethod="Explanation of how to confirm the fix worked goes here."
-              />
-            ))}
-          </div>
+        <div className="flex flex-col gap-3">
+          {(["loading", "not_found", "processing", "partial", "failed", "unavailable", "no_matches"] as const).map(
+            (kind) => (
+              <Card key={kind}>
+                <p className="mb-2 font-mono text-xs text-muted">{kind}</p>
+                <ReportStatusMessage kind={kind} scanHref="#" />
+              </Card>
+            )
+          )}
+        </div>
+
+        <SectionHeader title="Report header" />
+        <Card>
+          <ReportHeader meta={{ url: "example.com", scannedAt: null, status: "not_found" }} />
         </Card>
 
-        <SectionHeader title="Results page structure" />
+        <SectionHeader title="Health summary" />
+        <p className="mb-3 text-xs text-muted">No fake score - "—" until a real scan produces one.</p>
+        <HealthSummary
+          data={{
+            overallScore: null,
+            criticalCount: null,
+            importantCount: null,
+            improvementCount: null,
+            confidence: "unavailable",
+          }}
+        />
+
+        <SectionHeader title="Priority summary ('What should I fix first?')" />
         <p className="mb-3 text-xs text-muted">
-          Every section below is intentionally empty — this is the honest, current state, not a
-          demo of hidden content.
+          Real (empty) state, then a template-content example with the top 3 items.
         </p>
-        <ResultsLayout />
+        <div className="flex flex-col gap-3">
+          <PrioritySummary topIssues={[]} />
+          <PrioritySummary topIssues={TEMPLATE_ISSUES.slice(0, 3)} />
+        </div>
+
+        <SectionHeader title="Category report cards" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {REPORT_CATEGORIES.slice(0, 4).map((category) => (
+            <CategoryReportCard
+              key={category.id}
+              category={{ ...category, issueCount: null, confidence: "unavailable" }}
+            />
+          ))}
+        </div>
+
+        <SectionHeader title="Report navigation" />
+        <p className="mb-3 text-xs text-muted">Sidebar on desktop, dropdown below md width.</p>
+        <Card>
+          <ReportNavigation items={REPORT_NAV_ITEMS} activeId={navActive} onSelect={setNavActive} />
+        </Card>
+
+        <SectionHeader title="Issue search, filters, and list" />
+        <p className="mb-3 text-xs text-muted">
+          Template issues below (not real findings) demonstrate the working filter/search/sort
+          controls. The real Problems page starts with zero issues and shows the honest
+          "not available yet" message instead.
+        </p>
+        <div className="flex flex-col gap-4">
+          <IssueSearch value={filters.query} onChange={filters.setQuery} />
+          <IssueFilters
+            severity={filters.severity}
+            onSeverityChange={filters.setSeverity}
+            category={filters.category}
+            onCategoryChange={filters.setCategory}
+            sort={filters.sort}
+            onSortChange={filters.setSort}
+          />
+          <IssueList issues={filters.filtered} totalCount={TEMPLATE_ISSUES.length} />
+        </div>
+
+        <SectionHeader title="Issue detail panel" />
+        <p className="mb-3 text-xs text-muted">
+          Template content below (static UI documentation, not a real finding), and the real
+          empty state beneath it.
+        </p>
+        <div className="flex flex-col gap-4">
+          <Card>
+            <IssueDetailPanel issue={TEMPLATE_ISSUES[0]} scanHref="#" />
+          </Card>
+          <Card>
+            <IssueDetailPanel issue={null} scanHref="#" />
+          </Card>
+        </div>
       </main>
       <Footer />
     </div>
