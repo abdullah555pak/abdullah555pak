@@ -8,16 +8,30 @@ const ISSUE: ReportIssue = {
   title: "Example issue",
   shortExplanation: "Example explanation.",
   whyItMatters: "Example reason this matters.",
+  whyItMattersDetail: null,
   severity: "critical",
   category: "technical-seo",
   affectedPages: 3,
-  evidence: "Example evidence.",
+  source: null,
+  evidence: [
+    {
+      confidence: "detected",
+      url: "https://example.com",
+      htmlElement: null,
+      detectedValue: null,
+      expectedValue: null,
+      technicalDetails: "Example evidence.",
+      screenshotUrl: null,
+    },
+  ],
   confidence: "detected",
   fixAvailable: true,
-  howToFix: null,
+  fixSteps: null,
   difficulty: null,
   expectedImpact: null,
   detectedAt: "2026-01-01",
+  verification: { status: "not_verified", lastCheckedAt: null },
+  relatedIssueIds: [],
 };
 
 describe("PrioritySummary ('What should I fix first?')", () => {

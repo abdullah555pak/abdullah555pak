@@ -37,6 +37,10 @@ function ReportPageContent() {
     router.push(`/report?url=${encodeURIComponent(url)}&section=${id}`);
   }
 
+  function goToIssue(issueId: string) {
+    router.push(`/report/issue?url=${encodeURIComponent(url)}&id=${encodeURIComponent(issueId)}`);
+  }
+
   if (!url) {
     return <ReportStatusMessage kind="not_found" scanHref="/" />;
   }
@@ -67,7 +71,7 @@ function ReportPageContent() {
                   confidence: "unavailable",
                 }}
               />
-              <PrioritySummary topIssues={[]} />
+              <PrioritySummary topIssues={[]} onSeeHowToFix={goToIssue} />
               <ReportSection
                 title="Browse by category"
                 description="Each area of your site's SEO, checked separately."
@@ -102,7 +106,7 @@ function ReportPageContent() {
                   sort={filters.sort}
                   onSortChange={filters.setSort}
                 />
-                <IssueList issues={filters.filtered} totalCount={0} />
+                <IssueList issues={filters.filtered} totalCount={0} onView={goToIssue} />
               </div>
             </ReportSection>
           )}
@@ -112,7 +116,7 @@ function ReportPageContent() {
               title="Action plan"
               description="A prioritized, step-by-step to-do list built from your results."
             >
-              <PrioritySummary topIssues={[]} />
+              <PrioritySummary topIssues={[]} onSeeHowToFix={goToIssue} />
             </ReportSection>
           )}
 

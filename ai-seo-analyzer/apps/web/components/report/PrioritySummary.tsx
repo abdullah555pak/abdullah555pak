@@ -40,8 +40,8 @@ export function PrioritySummary({ topIssues, onSeeHowToFix }: PrioritySummaryPro
                 <span className="font-semibold">Why it matters: </span>
                 {issue.whyItMatters}
               </p>
-              {issue.evidence && (
-                <p className="mt-1 font-mono text-xs text-muted">{issue.evidence}</p>
+              {issue.evidence && issue.evidence.length > 0 && issue.evidence[0].technicalDetails && (
+                <p className="mt-1 font-mono text-xs text-muted">{issue.evidence[0].technicalDetails}</p>
               )}
               <div className="mt-3">
                 <Button size="sm" onClick={() => onSeeHowToFix?.(issue.id)}>

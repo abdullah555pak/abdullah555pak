@@ -8,16 +8,20 @@ const ISSUE: ReportIssue = {
   title: "Example issue",
   shortExplanation: "Example explanation.",
   whyItMatters: "Example reason.",
+  whyItMattersDetail: null,
   severity: "medium",
   category: "content",
   affectedPages: 4,
+  source: null,
   evidence: null,
   confidence: "estimated",
   fixAvailable: false,
-  howToFix: null,
+  fixSteps: null,
   difficulty: null,
   expectedImpact: null,
   detectedAt: null,
+  verification: { status: "not_verified", lastCheckedAt: null },
+  relatedIssueIds: [],
 };
 
 describe("IssueList (Task 2 / Task 13)", () => {

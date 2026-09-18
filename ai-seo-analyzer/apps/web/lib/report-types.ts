@@ -59,25 +59,100 @@ export interface HealthSummary {
   confidence: DataConfidence;
 }
 
+/**
+ * One concrete piece of proof behind an issue (Category 02 Step 06,
+ * Task 3). An issue can have several - e.g. one per affected page - so
+ * ReportIssue.evidence is a list of these, not a single blob.
+ */
+export interface IssueEvidence {
+  confidence: DataConfidence;
+  url: string | null;
+  htmlElement: string | null;
+  detectedValue: string | null;
+  expectedValue: string | null;
+  technicalDetails: string | null;
+  screenshotUrl: string | null;
+}
+
+/**
+ * The four "why it matters" facets Task 2 asks for, beyond the single
+ * plain-language sentence in `whyItMatters`. Optional/nullable - a real
+ * finding may not always have something meaningful to say on every facet.
+ */
+export interface IssueImpactDetail {
+  seoImpact: string | null;
+  userExperienceImpact: string | null;
+  searchEngineImpact: string | null;
+  businessImpact: string | null;
+}
+
+/**
+ * What kind of place a fix step happens in (Task 7). Metadata only - it
+ * labels a step for a human to read, it never drives any automation.
+ */
+export type FixInstructionType =
+  | "website-code"
+  | "wordpress"
+  | "shopify"
+  | "cms"
+  | "hosting"
+  | "image"
+  | "content"
+  | "metadata"
+  | "structured-data";
+
+/** One item in an issue's specific fix checklist (Task 6). */
+export interface FixStepData {
+  id: string;
+  title: string;
+  description: string;
+  helpText: string | null;
+  instructionType: FixInstructionType | null;
+  actionLabel: string | null;
+  actionHref: string | null;
+}
+
+export type VerificationStatus =
+  | "not_verified" // default and, in production today, the only reachable state
+  | "fixed"
+  | "improved"
+  | "still_needs_attention"
+  | "unable_to_verify"
+  | "partially_fixed";
+
+/** Task 10: never real until a real re-scan can actually check a fix. */
+export interface IssueVerification {
+  status: VerificationStatus;
+  lastCheckedAt: string | null;
+}
+
 export interface ReportIssue {
   id: string;
   title: string;
-  /** One sentence, beginner-friendly - shown in list/summary views. */
+  /** One sentence, beginner-friendly - shown in list/summary and as the detail page's "what is the problem?" answer. */
   shortExplanation: string;
   /** Longer answer to "why does it matter?" - shown in the detail view. */
   whyItMatters: string;
+  /** Optional structured breakdown of whyItMatters - null until a real check has something to say for each facet. */
+  whyItMattersDetail: IssueImpactDetail | null;
   severity: IssueSeverity;
   category: ReportCategoryId;
   affectedPages: number | null;
-  /** Raw technical detail (a header, a selector) - shown behind a toggle. */
-  evidence: string | null;
+  /** Where this finding came from (e.g. a specific check name) - null until real analysis exists. */
+  source: string | null;
+  /** Structured proof behind the finding - null/empty until real analysis exists. */
+  evidence: IssueEvidence[] | null;
   confidence: DataConfidence;
   fixAvailable: boolean;
-  howToFix: string[] | null;
-  difficulty: "easy" | "medium" | "hard" | null;
+  /** The issue-specific fix checklist - null/empty until a real fix guide exists for this finding. */
+  fixSteps: FixStepData[] | null;
+  difficulty: "easy" | "moderate" | "advanced" | null;
   expectedImpact: "high" | "medium" | "low" | null;
   /** ISO timestamp - null until this issue has actually been detected once. */
   detectedAt: string | null;
+  verification: IssueVerification;
+  /** Ids of other issues that relate to this one - empty until real analysis can compute this. */
+  relatedIssueIds: string[];
 }
 
 export interface ReportMeta {

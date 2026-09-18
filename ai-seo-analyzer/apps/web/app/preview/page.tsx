@@ -31,9 +31,19 @@ import { CategoryReportCard } from "@/components/report/CategoryReportCard";
 import { IssueSearch } from "@/components/report/IssueSearch";
 import { IssueFilters } from "@/components/report/IssueFilters";
 import { IssueList } from "@/components/report/IssueList";
-import { IssueDetailPanel } from "@/components/report/IssueDetailPanel";
 import { ReportStatusMessage } from "@/components/report/ReportStatusMessage";
 import { useIssueFilters } from "@/hooks/useIssueFilters";
+import { IssueDetailHeader } from "@/components/issue/IssueDetailHeader";
+import { IssueExplanation } from "@/components/issue/IssueExplanation";
+import { WhyItMatters } from "@/components/issue/WhyItMatters";
+import { EvidencePanel } from "@/components/issue/EvidencePanel";
+import { FixGuide } from "@/components/issue/FixGuide";
+import { DifficultyBadge } from "@/components/issue/DifficultyBadge";
+import { ImpactBadge } from "@/components/issue/ImpactBadge";
+import { ReadyToVerify } from "@/components/issue/ReadyToVerify";
+import { VerificationState } from "@/components/issue/VerificationState";
+import { NextActionPanel } from "@/components/issue/NextActionPanel";
+import type { VerificationStatus } from "@/lib/report-types";
 
 const SCAN_PHASES: ScanPhase[] = [
   "idle",
@@ -64,17 +74,72 @@ const TEMPLATE_ISSUES: ReportIssue[] = SEVERITY_ORDER.map((severity, index) => (
   title: "Example issue title goes here",
   shortExplanation: "Example one-line explanation goes here.",
   whyItMatters: "Example explanation of why this would matter goes here.",
+  whyItMattersDetail: null,
   severity,
   category: REPORT_CATEGORIES[index % REPORT_CATEGORIES.length].id,
   affectedPages: (index + 1) * 2,
-  evidence: "Example technical detail text goes here.",
+  source: "Example check name",
+  evidence: [
+    {
+      confidence: CONFIDENCES[index % CONFIDENCES.length],
+      url: "https://example.com/page",
+      htmlElement: "<title>",
+      detectedValue: "Example detected value",
+      expectedValue: "Example expected value",
+      technicalDetails: "Example technical detail text goes here.",
+      screenshotUrl: null,
+    },
+  ],
   confidence: CONFIDENCES[index % CONFIDENCES.length],
   fixAvailable: index % 2 === 0,
-  howToFix: ["Example step 1.", "Example step 2."],
-  difficulty: "easy",
+  fixSteps: [
+    {
+      id: "step-1",
+      title: "Example fix step one",
+      description: "Example description of the first thing to change.",
+      helpText: "Example extra help text for beginners.",
+      instructionType: "website-code",
+      actionLabel: null,
+      actionHref: null,
+    },
+    {
+      id: "step-2",
+      title: "Example fix step two",
+      description: "Example description of the second thing to change.",
+      helpText: null,
+      instructionType: "metadata",
+      actionLabel: null,
+      actionHref: null,
+    },
+  ],
+  difficulty: "moderate",
   expectedImpact: "medium",
   detectedAt: "2026-01-01",
+  verification: { status: "not_verified", lastCheckedAt: null },
+  relatedIssueIds: [],
 }));
+
+// A single, fuller example issue for the Issue Detail page component
+// gallery below - template content only, same rule as TEMPLATE_ISSUES.
+const TEMPLATE_DETAIL_ISSUE: ReportIssue = {
+  ...TEMPLATE_ISSUES[0],
+  id: "template-detail",
+  whyItMattersDetail: {
+    seoImpact: "Example: search engines may struggle to understand this page.",
+    userExperienceImpact: "Example: visitors may find this confusing.",
+    searchEngineImpact: "Example: this page may rank lower than it could.",
+    businessImpact: "Example: this could mean fewer visitors convert into customers.",
+  },
+};
+
+const VERIFICATION_STATUSES: VerificationStatus[] = [
+  "not_verified",
+  "fixed",
+  "improved",
+  "still_needs_attention",
+  "unable_to_verify",
+  "partially_fixed",
+];
 
 const REPORT_NAV_ITEMS: ReportNavItem[] = [
   { id: "overview", label: "Overview" },
@@ -335,18 +400,73 @@ export default function PreviewPage() {
           <IssueList issues={filters.filtered} totalCount={TEMPLATE_ISSUES.length} />
         </div>
 
-        <SectionHeader title="Issue detail panel" />
+        <SectionHeader title="Issue detail page (Step 06)" />
         <p className="mb-3 text-xs text-muted">
-          Template content below (static UI documentation, not a real finding), and the real
-          empty state beneath it.
+          Template content below (static UI documentation, not a real finding) demonstrating the
+          full Issue Detail page component set. In production, the real issue detail page always
+          shows an honest "Issue not found" state today, since there is no real issue store yet.
         </p>
-        <div className="flex flex-col gap-4">
-          <Card>
-            <IssueDetailPanel issue={TEMPLATE_ISSUES[0]} scanHref="#" />
-          </Card>
-          <Card>
-            <IssueDetailPanel issue={null} scanHref="#" />
-          </Card>
+        <Card className="flex flex-col gap-6">
+          <IssueDetailHeader issue={TEMPLATE_DETAIL_ISSUE} />
+          <IssueExplanation issue={TEMPLATE_DETAIL_ISSUE} />
+          <WhyItMatters issue={TEMPLATE_DETAIL_ISSUE} />
+          <div>
+            <h3 className="text-lg font-semibold text-ink">Evidence</h3>
+            <div className="mt-2">
+              <EvidencePanel evidence={TEMPLATE_DETAIL_ISSUE.evidence} />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-6">
+            <div>
+              <p className="text-xs font-semibold text-muted">Difficulty</p>
+              <div className="mt-1">
+                <DifficultyBadge difficulty={TEMPLATE_DETAIL_ISSUE.difficulty} />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-muted">Expected impact</p>
+              <div className="mt-1">
+                <ImpactBadge impact={TEMPLATE_DETAIL_ISSUE.expectedImpact} />
+              </div>
+            </div>
+          </div>
+          <FixGuide fixSteps={TEMPLATE_DETAIL_ISSUE.fixSteps} />
+          <ReadyToVerify url="example.com" />
+          <NextActionPanel reportHref="#" scanHref="#" />
+        </Card>
+
+        <SectionHeader title="Evidence panel - unavailable state" />
+        <Card>
+          <EvidencePanel evidence={null} />
+        </Card>
+
+        <SectionHeader title="Fix guide - no issue-specific steps yet" />
+        <Card>
+          <FixGuide fixSteps={null} />
+        </Card>
+
+        <SectionHeader title="Verification states" />
+        <p className="mb-3 text-xs text-muted">
+          "Not verified" is the only state the real app can show today - the rest exist so the UI
+          is ready once real re-scans can check a specific fix.
+        </p>
+        <div className="flex flex-col gap-3">
+          {VERIFICATION_STATUSES.map((status) => (
+            <Card key={status}>
+              <VerificationState status={status} lastCheckedAt={status === "not_verified" ? null : "2026-01-01"} />
+            </Card>
+          ))}
+        </div>
+
+        <SectionHeader title="Issue detail - error and empty states" />
+        <div className="flex flex-col gap-3">
+          <EmptyState title="Scan required" description="Analyze a website first to see details about a specific issue." />
+          <EmptyState title="Report unavailable" description="We don't have a report to show issue details from yet." />
+          <EmptyState
+            title="Issue not found"
+            description="We couldn't find this issue. It may have already been resolved, or the link may be out of date."
+          />
+          <EmptyState title="Issue data unavailable" description="We found this issue, but couldn't load its full details." />
         </div>
       </main>
       <Footer />
