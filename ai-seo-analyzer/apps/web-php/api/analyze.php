@@ -10,6 +10,7 @@
  */
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/url-security.php';
+require_once __DIR__ . '/../src/Crawler/SsrfGuard.php';
 
 header('Content-Type: application/json');
 
@@ -42,11 +43,26 @@ if (!is_string($url) || $url === '' || strlen($url) > 2048) {
     exit;
 }
 
-try {
-    $normalizedUrl = validate_public_url($url);
-} catch (UnsafeURLException $e) {
+// Category 03 Step 02: SsrfGuard wraps validate_public_url() and additionally
+// walks and re-validates every redirect hop, so a public URL that redirects
+// to a private/internal target is caught here too - not just a URL that is
+// unsafe on its face. See src/Crawler/SsrfGuard.php.
+$result = SsrfGuard::checkUrlSafety($url);
+
+if (!$result->valid) {
+    // Security-relevant rejections (private IP, unsafe redirect, disallowed
+    // scheme/port) are logged server-side only, for abuse monitoring - never
+    // shown to the visitor beyond the already-safe $userMessage, and never
+    // written anywhere a report or client response could later expose them.
+    if ($result->securityStatus === ValidationResult::STATUS_BLOCKED) {
+        error_log(sprintf(
+            '[ssrf-guard] blocked url submission: reason=%s remote_addr=%s',
+            $result->reason,
+            $_SERVER['REMOTE_ADDR'] ?? 'unknown'
+        ));
+    }
     http_response_code(400);
-    echo json_encode(error_body($e->getMessage(), 'invalid_url'));
+    echo json_encode(error_body($result->userMessage, 'invalid_url'));
     exit;
 }
 
@@ -54,5 +70,5 @@ http_response_code(501);
 echo json_encode(not_implemented_body(
     'Website crawling and SEO analysis are not implemented yet. The real crawler is coming in ' .
     'a later development step (Category 03).',
-    $normalizedUrl
+    $result->normalizedUrl
 ));

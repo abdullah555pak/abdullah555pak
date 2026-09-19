@@ -85,6 +85,16 @@ data the database already holds. Everything else in the prompt's list maps
 Nothing above is installed by this step. This is a recommendation list for
 the implementation steps that follow.
 
+**Step 02 correction:** URL validation + SSRF protection (`src/Crawler/`,
+below) was implemented with plain `require_once` includes, **not**
+Composer/PSR-4, despite the recommendation above. With only five small
+classes so far, adding a `composer.json` would have meant asking the
+project's users — who have struggled specifically with local Node/npm/
+Composer-style tooling — to also run `composer install` before `php -S`
+works again, for no functional benefit yet. Composer remains the right
+call once the class count from later crawler steps (§3) makes manual
+`require_once` chains unwieldy; revisit then, not before.
+
 ---
 
 ## 3. Folder/file structure changes (proposed — not created yet)
@@ -129,6 +139,17 @@ the crawler-specific behavior that a one-shot form validator doesn't need
 (re-checking on every redirect hop, pinning the resolved IP for the actual
 `curl` connection). Page-rendering code (`index.php`, `report.php`, ...)
 never depends on anything under `src/Crawler/`.
+
+**Step 02 status:** `UrlNormalizer.php`, `SsrfGuard.php`, `ValidationResult.php`,
+`RedirectProbeInterface.php` and `CurlRedirectProbe.php` now exist under
+`src/Crawler/`, plus a `tests/` directory (`FakeRedirectProbe.php` and
+`run-url-validation-tests.php`) — see §7 for what each does. Everything
+else in the tree above (`CrawlManager`, `RobotsTxtHandler`,
+`SitemapDiscovery`, `UrlQueue`, `HttpFetcher`, `HtmlParser`, `Storage/`,
+`workers/`, the two new `api/` endpoints, and the database schema in §4)
+remains unbuilt, exactly as this blueprint originally scoped for later
+steps. `api/analyze.php` still only validates and returns an honest 501 —
+it does not start a crawl.
 
 ---
 
@@ -272,6 +293,79 @@ one-shot form check doesn't need but a crawler must have:
    specifically as not-automatically-trustworthy; this is enforced by
    having exactly one fetch entry point (`HttpFetcher::fetch()`, always
    called through `SsrfGuard` first) that every other component uses.
+
+### 7.1 Step 02 implementation notes
+
+What was actually built, and two naming/behavior details that differ
+slightly from the prose above:
+
+- The entry point is `SsrfGuard::checkUrlSafety(string $rawUrl, ?RedirectProbeInterface $probe = null): ValidationResult`
+  (not `SsrfGuard::validate()` as §7's prose says above) — the extra
+  `$probe` parameter is what makes point 1 above testable at all: tests
+  inject a `FakeRedirectProbe` that returns canned redirect chains, since
+  there is no safe way to test "a redirect to 169.254.169.254 is blocked"
+  against a real server.
+- `CurlRedirectProbe` (the real, `curl`-backed `RedirectProbeInterface`
+  implementation) sends a `HEAD` request with `CURLOPT_FOLLOWLOCATION`
+  disabled, pinned to the pre-validated IP via `CURLOPT_RESOLVE` — this is
+  point 3 above, implemented. It is deliberately **not** the `HttpFetcher`
+  from §3/§12: it downloads no body and exists only to answer "does this
+  redirect, and to where?" during the safety check. §12's `HttpFetcher`,
+  when built, must independently adopt the same `CURLOPT_RESOLVE` pinning
+  pattern for its own connections — passing this safety check once does
+  not make a later, separate connection automatically safe.
+- `validate_public_url()` gained a by-reference `$outResolvedIp` parameter
+  and now also rejects non-default ports (any port other than 80 for
+  `http://` or 443 for `https://`) — not primarily an SSRF control (a
+  private IP is already blocked regardless of port) but to stop a public
+  host from being used to probe unrelated internal services running on
+  unusual ports on that same public machine.
+- Writing the test suite surfaced two real gaps in the existing
+  `EXTRA_BLOCKED_CIDRS` list that PHP's `FILTER_FLAG_NO_RES_RANGE` does
+  not cover and the original list also missed: multicast (`224.0.0.0/4`)
+  and the limited broadcast address (`255.255.255.255/32`). Both are now
+  blocked.
+
+### 7.2 Known limitations (not claimed to be perfect)
+
+Per this step's own instructions, this is not presented as airtight SSRF
+protection — these are the honest gaps as of Step 02:
+
+- **No IDN/punycode normalization yet.** §6.1 calls for `idn_to_ascii()`
+  before any validation step; `UrlNormalizer` does not call it yet. A
+  Unicode hostname still goes through the same DNS-resolution-then-IP-
+  block check as any other hostname (so it can't resolve to a private IP
+  undetected), but homograph-style lookalike domains are not specifically
+  flagged, and normalization/dedup of an IDN vs. its punycode form isn't
+  guaranteed to match. Deferred to whichever step first needs to compare
+  URLs across an actual crawl (§6's queue dedup), since Step 02 has no
+  such comparison yet.
+- **The redirect probe is HEAD-only.** A server that only issues a
+  redirect in response to `GET` (not `HEAD`) would report as "no
+  redirect" to `SsrfGuard`, then behave differently when a future
+  `HttpFetcher` performs the real `GET`. `HttpFetcher` must not treat a
+  prior `SsrfGuard` pass as a substitute for its own hop-by-hop validation
+  — §7 point 1 already requires every hop to be re-validated at fetch
+  time, independent of this earlier check.
+- **DNS rebinding is closed for the probe's own connection only.** Pinning
+  via `CURLOPT_RESOLVE` protects exactly the one connection `SsrfGuard`
+  itself makes. It provides no protection for any other code path that
+  might independently re-resolve the same hostname later; every future
+  network call in this project must do its own resolve-then-pin, not rely
+  on an earlier `SsrfGuard` result.
+- **A five-hop redirect cap is a heuristic, not a proof.** It stops
+  unbounded chains and simple two-URL loops (both tested), but a
+  sufficiently long non-repeating chain that happens to stay under the cap
+  would still be followed hop-by-hop — each hop is independently validated
+  as safe, so this isn't a bypass of the safety check itself, just a
+  reminder that "under the cap" and "a normal website" aren't the same
+  thing.
+- **A blocklist-based approach is inherently a moving target.** New IP
+  ranges get reserved, cloud providers add metadata endpoints, and no
+  static CIDR list can be asserted complete forever. This step reuses
+  PHP's built-in reserved/private-range filters plus a documented,
+  explicit extra list rather than trying to hand-maintain a from-scratch
+  blocklist, but "complete forever" is not a claim this document makes.
 
 ---
 

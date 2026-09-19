@@ -23,6 +23,19 @@
 
 class UnsafeURLException extends Exception
 {
+    /**
+     * Category 03 Step 02 addition: lets a caller (SsrfGuard) tell a real
+     * SSRF/security rejection (private IP, localhost, disallowed scheme
+     * or port, embedded credentials) apart from a plain format problem
+     * (empty input, too long, unparseable, host doesn't resolve) without
+     * having to guess from the message text. Defaults to true because
+     * most rejections here are security-relevant; the handful of purely
+     * format-related throws below pass false explicitly.
+     */
+    public function __construct(string $message, public readonly bool $isSecurityBlock = true)
+    {
+        parent::__construct($message);
+    }
 }
 
 const ALLOWED_URL_SCHEMES = ['http', 'https'];
@@ -30,15 +43,17 @@ const ALLOWED_URL_SCHEMES = ['http', 'https'];
 // Ranges PHP's own FILTER_FLAG_NO_PRIV_RANGE / FILTER_FLAG_NO_RES_RANGE
 // don't reliably cover, matching the Python version's _EXTRA_BLOCKED_NETWORKS.
 const EXTRA_BLOCKED_CIDRS = [
-    '100.64.0.0/10',   // carrier-grade NAT
-    '192.0.0.0/24',    // IETF protocol assignments
-    '192.0.2.0/24',    // TEST-NET-1
-    '198.18.0.0/15',   // benchmarking
-    '198.51.100.0/24', // TEST-NET-2
-    '203.0.113.0/24',  // TEST-NET-3
-    '::ffff:0:0/96',   // IPv4-mapped IPv6
-    '64:ff9b::/96',    // NAT64
-    '100::/64',        // discard-only
+    '100.64.0.0/10',      // carrier-grade NAT
+    '192.0.0.0/24',       // IETF protocol assignments
+    '192.0.2.0/24',       // TEST-NET-1
+    '198.18.0.0/15',      // benchmarking
+    '198.51.100.0/24',    // TEST-NET-2
+    '203.0.113.0/24',     // TEST-NET-3
+    '224.0.0.0/4',        // multicast - PHP's FILTER_FLAG_NO_RES_RANGE does not cover this
+    '255.255.255.255/32', // limited broadcast - not covered by FILTER_FLAG_NO_RES_RANGE either
+    '::ffff:0:0/96',      // IPv4-mapped IPv6
+    '64:ff9b::/96',       // NAT64
+    '100::/64',           // discard-only
 ];
 
 function ip_in_cidr(string $ip, string $cidr): bool
@@ -96,22 +111,32 @@ function is_blocked_ip(string $ip): bool
  *
  * Returns the normalized "scheme://host[:port]" on success.
  * Throws UnsafeURLException with a beginner-friendly message on failure.
+ *
+ * @param string|null $outResolvedIp Category 03 Step 02 addition: when
+ *   passed by reference, receives the exact IP address this call
+ *   validated as safe. Callers that need to actually connect (e.g. the
+ *   crawler's redirect-safety probe) MUST reuse this IP - pinning the
+ *   connection to it, rather than letting a second DNS lookup happen at
+ *   connect time - to close the gap between "checked" and "connected"
+ *   a hostile or misconfigured DNS server could otherwise exploit (DNS
+ *   rebinding). Optional and backward compatible: existing callers that
+ *   only need a yes/no answer can ignore this parameter entirely.
  */
-function validate_public_url(string $raw_url): string
+function validate_public_url(string $raw_url, ?string &$outResolvedIp = null): string
 {
     $raw_url = trim($raw_url);
     if ($raw_url === '') {
-        throw new UnsafeURLException('Please enter a website address.');
+        throw new UnsafeURLException('Please enter a website address.', isSecurityBlock: false);
     }
     if (strlen($raw_url) > 2048) {
-        throw new UnsafeURLException('That website address is too long.');
+        throw new UnsafeURLException('That website address is too long.', isSecurityBlock: false);
     }
 
     // Allow "example.com" as well as "https://example.com".
     $candidate = str_contains($raw_url, '//') ? $raw_url : '//' . $raw_url;
     $parsed = @parse_url($candidate);
     if ($parsed === false) {
-        throw new UnsafeURLException("That doesn't look like a valid website address.");
+        throw new UnsafeURLException("That doesn't look like a valid website address.", isSecurityBlock: false);
     }
 
     $scheme = strtolower($parsed['scheme'] ?? 'https');
@@ -125,11 +150,29 @@ function validate_public_url(string $raw_url): string
 
     $hostname = isset($parsed['host']) ? strtolower($parsed['host']) : null;
     if (!$hostname) {
-        throw new UnsafeURLException("That doesn't look like a valid website address.");
+        throw new UnsafeURLException("That doesn't look like a valid website address.", isSecurityBlock: false);
     }
 
     if ($hostname === 'localhost' || str_ends_with($hostname, '.localhost')) {
         throw new UnsafeURLException("Local addresses can't be analyzed.");
+    }
+
+    // Category 03 Step 02: only the standard web ports are supported. This
+    // isn't primarily an SSRF control (a private IP is already blocked
+    // below regardless of port) - it's specifically to stop a *public*,
+    // otherwise-legitimate host from being used to probe non-web internal
+    // services on unusual ports (a database, cache, or admin panel
+    // listening on the same public-facing machine). No such service is
+    // ever something a website-analysis tool has a legitimate reason to
+    // reach, so rather than maintain a blocklist of known service ports,
+    // every non-default port is rejected outright.
+    if (isset($parsed['port'])) {
+        $defaultPort = $scheme === 'https' ? 443 : 80;
+        if ($parsed['port'] !== $defaultPort) {
+            throw new UnsafeURLException(
+                'Only the standard web ports are supported (port 80 for http, or 443 for https).'
+            );
+        }
     }
 
     // PHP's parse_url keeps the brackets around an IPv6 literal host
@@ -159,7 +202,10 @@ function validate_public_url(string $raw_url): string
     }
 
     if (empty($resolved)) {
-        throw new UnsafeURLException("We couldn't find that website. Check the address and try again.");
+        throw new UnsafeURLException(
+            "We couldn't find that website. Check the address and try again.",
+            isSecurityBlock: false
+        );
     }
 
     foreach ($resolved as $ip) {
@@ -169,6 +215,10 @@ function validate_public_url(string $raw_url): string
             );
         }
     }
+
+    // Any of the resolved+validated IPs is safe to pin to; the first is
+    // picked only for determinism, not because it's preferred in any way.
+    $outResolvedIp = $resolved[array_key_first($resolved)];
 
     $port_part = isset($parsed['port']) ? ':' . $parsed['port'] : '';
     return $scheme . '://' . $hostname . $port_part;
