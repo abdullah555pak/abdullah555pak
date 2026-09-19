@@ -46,17 +46,46 @@ require __DIR__ . '/includes/header.php';
     var statusEl = document.getElementById('scan-status');
     var resultEl = document.getElementById('scan-result');
 
-    function renderResult(title, message, tone, badgeText, badgeTone) {
+    function actionButtons(reportUrl) {
+      var html = '<div style="margin-top: 1.5rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.75rem;">';
+      if (reportUrl) {
+        html += '<a href="/report.php?url=' + encodeURIComponent(reportUrl) + '" class="btn btn--primary">View Report</a>';
+      }
+      html += '<a href="/" class="btn btn--secondary">Back to Home</a></div>';
+      return html;
+    }
+
+    // A URL that passed validation but hits the "not built yet" wall is
+    // NOT the same situation as a rejected/blocked URL - conflating them
+    // under one "Unavailable"/error-looking message reads as if something
+    // went wrong with the user's website, when nothing did. This renders
+    // two clearly separate facts: (1) the URL was accepted, in a
+    // success/"good" tone, and (2) crawling itself doesn't exist yet, in
+    // a neutral/informational tone - never implying a real analysis ran.
+    function renderValidatedNotImplemented(normalizedUrl, message) {
       statusEl.innerHTML =
-        '<span class="badge badge--' + badgeTone + '">' +
-        '<span class="badge__dot" aria-hidden="true"></span>' + badgeText + '</span>';
+        '<span class="badge badge--good"><span class="badge__dot" aria-hidden="true"></span>URL validated</span>';
       resultEl.innerHTML =
-        '<h2 style="color: var(--color-' + tone + '); font-size: 1.25rem; font-weight: 600; margin: 0;">' +
+        '<h2 style="color: var(--color-good); font-size: 1.25rem; font-weight: 600; margin: 0;">' +
+        'Your URL was accepted and validated</h2>' +
+        '<p style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--color-ink-soft);">' +
+        'We checked <strong>' + normalizedUrl + '</strong> and confirmed it&rsquo;s a safe, ' +
+        'reachable public website address.</p>' +
+        '<div class="card" style="margin-top: 1.5rem; text-align: left;">' +
+        '<span class="badge badge--gold"><span class="badge__dot" aria-hidden="true"></span>Crawler not implemented yet</span>' +
+        '<p style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--color-ink-soft);">' + message + '</p>' +
+        '</div>' +
+        actionButtons(normalizedUrl);
+    }
+
+    function renderError(title, message, badgeText) {
+      statusEl.innerHTML =
+        '<span class="badge badge--critical"><span class="badge__dot" aria-hidden="true"></span>' + badgeText + '</span>';
+      resultEl.innerHTML =
+        '<h2 style="color: var(--color-critical); font-size: 1.25rem; font-weight: 600; margin: 0;">' +
         title + '</h2>' +
         '<p style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--color-ink-soft);">' +
-        message + '</p>' +
-        '<div style="margin-top: 1.5rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.75rem;">' +
-        '<a href="/" class="btn btn--secondary">Back to Home</a></div>';
+        message + '</p>' + actionButtons(null);
     }
 
     fetch('/api/analyze.php', {
@@ -72,20 +101,18 @@ require __DIR__ . '/includes/header.php';
           'Something went wrong. Please try again.';
 
         if (result.status === 501) {
-          renderResult("This part of Sitewell isn't available yet", message, 'gold', 'Unavailable', 'gold');
+          renderValidatedNotImplemented(result.body.normalized_url || url, message);
         } else if (result.status === 400) {
-          renderResult('This address can&rsquo;t be analyzed', message, 'critical', 'Blocked', 'critical');
+          renderError('This address can&rsquo;t be analyzed', message, 'Blocked');
         } else {
-          renderResult('Analysis failed', message, 'critical', 'Failed', 'critical');
+          renderError('Analysis failed', message, 'Failed');
         }
       })
       .catch(function () {
-        renderResult(
+        renderError(
           'Analysis failed',
           "We couldn't reach the Sitewell server. Please try again in a moment.",
-          'critical',
-          'Failed',
-          'critical'
+          'Failed'
         );
       });
   })();

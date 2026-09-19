@@ -18,6 +18,14 @@ function error_body(string $message, string $code): array
     return ['error' => ['code' => $code, 'message' => $message]];
 }
 
+function not_implemented_body(string $message, string $normalizedUrl): array
+{
+    // normalized_url sits alongside the error so a caller can tell "this
+    // URL was validated" apart from "the feature isn't built yet" instead
+    // of treating the whole 501 response as one undifferentiated failure.
+    return ['normalized_url' => $normalizedUrl, 'error' => ['code' => 'not_implemented', 'message' => $message]];
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(error_body('Only POST is supported on this endpoint.', 'method_not_allowed'));
@@ -35,7 +43,7 @@ if (!is_string($url) || $url === '' || strlen($url) > 2048) {
 }
 
 try {
-    validate_public_url($url);
+    $normalizedUrl = validate_public_url($url);
 } catch (UnsafeURLException $e) {
     http_response_code(400);
     echo json_encode(error_body($e->getMessage(), 'invalid_url'));
@@ -43,8 +51,8 @@ try {
 }
 
 http_response_code(501);
-echo json_encode(error_body(
-    "Website analysis isn't built yet. We checked that this address is safe to scan, but " .
-    'the crawler and SEO engine are coming in a later development step.',
-    'not_implemented'
+echo json_encode(not_implemented_body(
+    'Website crawling and SEO analysis are not implemented yet. The real crawler is coming in ' .
+    'a later development step (Category 03).',
+    $normalizedUrl
 ));
