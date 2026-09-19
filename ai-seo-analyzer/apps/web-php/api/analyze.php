@@ -8,6 +8,7 @@
  * not return any score, finding, or report, because none of that exists
  * yet. See apps/api/app/api/v1/routers/analyze.py for the original.
  */
+require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/url-security.php';
 
 header('Content-Type: application/json');

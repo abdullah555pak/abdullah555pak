@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/includes/bootstrap.php';
+
 /**
  * PHP port of apps/web's app/report/issue/page.tsx. No real issue store
  * exists yet, so any id honestly resolves to "not found" - this mirrors

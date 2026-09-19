@@ -990,63 +990,6 @@ summary:focus-visible {
   min-width: 10rem;
 }
 
-/* Issue detail evidence */
-.evidence-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.evidence-item__top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.evidence-item pre {
-  margin: 0;
-  white-space: pre-wrap;
-  border-radius: 0.5rem;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-2);
-  padding: 0.75rem;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--color-ink-soft);
-}
-
-/* Fix checklist */
-.fix-step {
-  display: flex;
-  gap: 0.75rem;
-  border-bottom: 1px solid var(--color-border);
-  padding: 0.75rem 0;
-}
-
-.fix-step:last-child {
-  border-bottom: none;
-}
-
-.fix-step input[type="checkbox"] {
-  margin-top: 0.2rem;
-  height: 1rem;
-  width: 1rem;
-  flex-shrink: 0;
-}
-
-.fix-step__title {
-  font-weight: 600;
-  color: var(--color-ink);
-}
-
-.fix-step__desc {
-  margin: 0.15rem 0 0;
-  font-size: 0.875rem;
-  color: var(--color-ink-soft);
-}
-
 /* Standardized section/card headings (Step 08 visual-consistency pass -
    replaces one-off inline font-size/weight styles that had drifted to
    two different sizes for what was meant to be the same heading level). */

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/bootstrap.php';
 require_once __DIR__ . '/includes/report-data.php';
 
 $url = trim($_GET['url'] ?? '');

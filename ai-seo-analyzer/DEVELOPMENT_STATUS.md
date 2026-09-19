@@ -4,6 +4,14 @@ Snapshot as of the end of **Category 01 — Project Foundation**. Update this
 file at the end of every category so anyone (human or AI) picking up the
 project can orient in under a minute.
 
+> **Note (added end of Category 02):** a second, PHP-based front end
+> (`apps/web-php`) was built during Category 02 and is now the project's
+> primary, source-of-truth codebase going forward. See
+> `apps/web-php/DEVELOPMENT_STATUS.md` for its status. The `apps/web` /
+> `apps/api` codebase described below is kept for reference; everything in
+> this file remains an accurate record of what was actually built there,
+> it just isn't the active development direction anymore.
+
 ## Current project status
 
 Foundation complete, audited, and verified with a real clean-start test.

@@ -6,6 +6,9 @@
  *
  * @var string $page_title Set by the including page before requiring this file.
  */
+
+require_once __DIR__ . '/bootstrap.php';
+
 $page_title = $page_title ?? 'Sitewell';
 ?>
 <!DOCTYPE html>
