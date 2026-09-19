@@ -7,7 +7,7 @@ $hasUsableUrl = $url !== '' && looks_like_website_address($url);
 $page_title = 'Analyzing ' . ($url !== '' ? $url : 'your website') . ' — Sitewell';
 require __DIR__ . '/includes/header.php';
 ?>
-  <main class="main">
+  <main class="main" id="main-content">
     <?php if (!$hasUsableUrl): ?>
       <div class="empty-state u-text-center">
         <p class="empty-state__title">No website to analyze</p>
@@ -17,12 +17,13 @@ require __DIR__ . '/includes/header.php';
         </div>
       </div>
     <?php else: ?>
+      <a href="/" class="report-header__back">&larr; Back to Home</a>
       <div class="u-text-center">
         <h1 class="hero__title" style="font-size:1.5rem;">Analyzing your website</h1>
         <p style="margin-top:0.25rem; font-size:0.875rem; font-weight:600; color:var(--color-ink-soft); word-break:break-all;">
           <?= htmlspecialchars($url) ?>
         </p>
-        <div id="scan-status" style="margin-top:0.75rem;">
+        <div id="scan-status" role="status" aria-live="polite" style="margin-top:0.75rem;">
           <span class="badge badge--info"><span class="badge__dot" aria-hidden="true"></span>Checking&hellip;</span>
         </div>
       </div>

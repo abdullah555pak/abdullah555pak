@@ -13,7 +13,7 @@ require __DIR__ . '/includes/header.php';
 $report_href = '/report.php?url=' . urlencode($url) . '&section=problems';
 $scan_href = '/scan.php?url=' . urlencode($url);
 ?>
-  <main class="main">
+  <main class="main" id="main-content">
     <?php if ($url === ''): ?>
       <div class="empty-state u-text-center">
         <p class="empty-state__title">Scan required</p>

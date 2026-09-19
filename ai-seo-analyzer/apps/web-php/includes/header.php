@@ -17,6 +17,7 @@ $page_title = $page_title ?? 'Sitewell';
   <link rel="stylesheet" href="/assets/css/style.css">
 </head>
 <body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
 <div class="page">
   <header class="site-header">
     <div class="site-header__inner">

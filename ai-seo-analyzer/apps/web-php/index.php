@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $page_title = 'Sitewell — Know what\'s holding your website back';
 require __DIR__ . '/includes/header.php';
 ?>
-  <main class="main">
+  <main class="main" id="main-content">
     <div class="hero">
       <p class="hero__eyebrow">For website owners with zero SEO experience</p>
       <h1 class="hero__title">Know what&rsquo;s holding your website back.</h1>

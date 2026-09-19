@@ -7,7 +7,7 @@ $section = $_GET['section'] ?? 'overview';
 $page_title = 'Report' . ($url !== '' ? " for $url" : '') . ' — Sitewell';
 require __DIR__ . '/includes/header.php';
 ?>
-  <main class="main" style="max-width: 64rem;">
+  <main class="main" id="main-content" style="max-width: 64rem;">
     <?php if ($url === ''): ?>
       <div class="empty-state u-text-center">
         <p class="empty-state__title">No report available</p>
@@ -66,8 +66,8 @@ require __DIR__ . '/includes/header.php';
             <div style="display:flex; flex-direction:column; gap:1.5rem;">
               <!-- Health summary: never a fake score - see lib/report-types.ts HealthSummary. -->
               <div class="card">
-                <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:0.5rem;">
-                  <h2 style="margin:0; font-size:1.125rem; font-weight:600;">Overall SEO health</h2>
+                <div class="section-header-row">
+                  <h2 class="card-title">Overall SEO health</h2>
                   <span class="badge badge--muted"><span class="badge__dot" aria-hidden="true"></span>Unavailable</span>
                 </div>
                 <div class="health-top">
@@ -90,10 +90,10 @@ require __DIR__ . '/includes/header.php';
               <?php require __DIR__ . '/includes/priority-summary.php'; ?>
 
               <section aria-labelledby="browse-category-heading">
-                <div style="display:flex; flex-wrap:wrap; align-items:start; justify-content:space-between; gap:0.5rem;">
+                <div class="section-header-row">
                   <div>
-                    <h2 id="browse-category-heading" style="margin:0; font-size:1.25rem; font-weight:600;">Browse by category</h2>
-                    <p style="margin:0.15rem 0 0; font-size:0.875rem; color:var(--color-muted);">Each area of your site&rsquo;s SEO, checked separately.</p>
+                    <h2 id="browse-category-heading" class="section-title">Browse by category</h2>
+                    <p class="section-subtitle">Each area of your site&rsquo;s SEO, checked separately.</p>
                   </div>
                 </div>
                 <div class="category-grid u-mt-1">
@@ -115,19 +115,19 @@ require __DIR__ . '/includes/header.php';
 
           <?php elseif ($section === 'problems'): ?>
             <section aria-labelledby="problems-heading">
-              <h2 id="problems-heading" style="margin:0; font-size:1.25rem; font-weight:600;">Problems</h2>
-              <p style="margin:0.15rem 0 0; font-size:0.875rem; color:var(--color-muted);">Every issue we find will be listed here, most important first.</p>
+              <h2 id="problems-heading" class="section-title">Problems</h2>
+              <p class="section-subtitle">Every issue we find will be listed here, most important first.</p>
 
               <div style="display:flex; flex-direction:column; gap:1rem; margin-top:1rem;">
                 <div style="max-width:20rem;">
                   <label for="issue-search" class="field-label">Search issues</label>
-                  <input id="issue-search" type="search" class="text-input" placeholder="e.g. meta description">
+                  <input id="issue-search" type="search" class="text-input" placeholder="e.g. meta description" data-filter-control>
                 </div>
 
-                <div role="group" aria-label="Filter issues by severity" class="filter-pills">
-                  <button type="button" class="filter-pill is-active">All</button>
+                <div role="group" aria-label="Filter issues by severity" class="filter-pills" data-filter-pills>
+                  <button type="button" class="filter-pill is-active" aria-pressed="true">All</button>
                   <?php foreach (SEVERITY_ORDER as $sev): ?>
-                    <button type="button" class="filter-pill"><?= htmlspecialchars(SEVERITY_META[$sev]['label']) ?></button>
+                    <button type="button" class="filter-pill" aria-pressed="false"><?= htmlspecialchars(SEVERITY_META[$sev]['label']) ?></button>
                   <?php endforeach; ?>
                 </div>
 
@@ -159,19 +159,19 @@ require __DIR__ . '/includes/header.php';
 
           <?php elseif ($section === 'action-plan'): ?>
             <section aria-labelledby="action-plan-heading">
-              <h2 id="action-plan-heading" style="margin:0; font-size:1.25rem; font-weight:600;">Action plan</h2>
-              <p style="margin:0.15rem 0 0; font-size:0.875rem; color:var(--color-muted);">A prioritized, step-by-step to-do list built from your results.</p>
+              <h2 id="action-plan-heading" class="section-title">Action plan</h2>
+              <p class="section-subtitle">A prioritized, step-by-step to-do list built from your results.</p>
               <div class="u-mt-1">
-                <?php require __DIR__ . '/includes/priority-summary.php'; ?>
+                <?php $priority_summary_heading_level = 'h3'; require __DIR__ . '/includes/priority-summary.php'; ?>
               </div>
             </section>
 
           <?php elseif ($category = report_category_by_id($section)): ?>
             <section aria-labelledby="category-section-heading">
-              <div style="display:flex; flex-wrap:wrap; align-items:start; justify-content:space-between; gap:0.5rem;">
+              <div class="section-header-row">
                 <div>
-                  <h2 id="category-section-heading" style="margin:0; font-size:1.25rem; font-weight:600;"><?= htmlspecialchars($category['title']) ?></h2>
-                  <p style="margin:0.15rem 0 0; font-size:0.875rem; color:var(--color-muted);"><?= htmlspecialchars($category['description']) ?></p>
+                  <h2 id="category-section-heading" class="section-title"><?= htmlspecialchars($category['title']) ?></h2>
+                  <p class="section-subtitle"><?= htmlspecialchars($category['description']) ?></p>
                 </div>
                 <span class="badge badge--muted"><span class="badge__dot" aria-hidden="true"></span>Unavailable</span>
               </div>
@@ -195,3 +195,25 @@ require __DIR__ . '/includes/header.php';
     <?php endif; ?>
   </main>
 <?php require __DIR__ . '/includes/footer.php'; ?>
+<?php if ($url !== '' && $section === 'problems'): ?>
+<script>
+  // Step 08 polish: the severity filter is real UI (not dead decoration),
+  // even though every filter shows the same honest "not available yet"
+  // result today, because there are zero real issues to filter either
+  // way - clicking a pill correctly toggles which one is active.
+  (function () {
+    var group = document.querySelector('[data-filter-pills]');
+    if (!group) return;
+    group.addEventListener('click', function (event) {
+      var button = event.target.closest('.filter-pill');
+      if (!button) return;
+      group.querySelectorAll('.filter-pill').forEach(function (pill) {
+        pill.classList.remove('is-active');
+        pill.setAttribute('aria-pressed', 'false');
+      });
+      button.classList.add('is-active');
+      button.setAttribute('aria-pressed', 'true');
+    });
+  })();
+</script>
+<?php endif; ?>
