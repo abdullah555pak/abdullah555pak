@@ -44,6 +44,14 @@ import { ReadyToVerify } from "@/components/issue/ReadyToVerify";
 import { VerificationState } from "@/components/issue/VerificationState";
 import { NextActionPanel } from "@/components/issue/NextActionPanel";
 import type { VerificationStatus } from "@/lib/report-types";
+import type { ActionPlanItem } from "@/lib/action-plan-types";
+import { useActionFilters } from "@/hooks/useActionFilters";
+import { ActionPlanProgress } from "@/components/action-plan/ActionPlanProgress";
+import { ActionSearch } from "@/components/action-plan/ActionSearch";
+import { ActionFilters } from "@/components/action-plan/ActionFilters";
+import { ActionList } from "@/components/action-plan/ActionList";
+import { ActionEmptyState } from "@/components/action-plan/ActionEmptyState";
+import { ActionUnavailableState } from "@/components/action-plan/ActionUnavailableState";
 
 const SCAN_PHASES: ScanPhase[] = [
   "idle",
@@ -141,6 +149,14 @@ const VERIFICATION_STATUSES: VerificationStatus[] = [
   "partially_fixed",
 ];
 
+// Template content only - not a real action plan. Category 02 Step 07.
+const TEMPLATE_ACTIONS: ActionPlanItem[] = TEMPLATE_ISSUES.slice(0, 4).map((issue, index) => ({
+  ...issue,
+  id: `template-action-${index}`,
+  order: index + 1,
+  status: (["not_started", "in_progress", "ready_to_verify", "verified"] as const)[index],
+}));
+
 const REPORT_NAV_ITEMS: ReportNavItem[] = [
   { id: "overview", label: "Overview" },
   { id: "problems", label: "Problems" },
@@ -160,6 +176,7 @@ export default function PreviewPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [navActive, setNavActive] = useState("overview");
   const filters = useIssueFilters(TEMPLATE_ISSUES);
+  const actionFilters = useActionFilters(TEMPLATE_ACTIONS);
 
   useEffect(() => {
     if (!playing) return;
@@ -467,6 +484,46 @@ export default function PreviewPage() {
             description="We couldn't find this issue. It may have already been resolved, or the link may be out of date."
           />
           <EmptyState title="Issue data unavailable" description="We found this issue, but couldn't load its full details." />
+        </div>
+
+        <SectionHeader title="Action Plan (Step 07)" />
+        <p className="mb-3 text-xs text-muted">
+          Template actions below (static UI documentation, not a real plan) demonstrate the
+          working search/filter/list. The real Action Plan page starts with zero actions and
+          shows the honest "not available yet" message instead.
+        </p>
+        <ActionPlanProgress data={{ completedCount: null, remainingCount: null, needingVerificationCount: null }} />
+        <div className="mt-4 flex flex-col gap-4">
+          <ActionSearch value={actionFilters.query} onChange={actionFilters.setQuery} />
+          <ActionFilters
+            category={actionFilters.category}
+            onCategoryChange={actionFilters.setCategory}
+            status={actionFilters.status}
+            onStatusChange={actionFilters.setStatus}
+          />
+          <ActionList actions={actionFilters.filtered} totalCount={TEMPLATE_ACTIONS.length} />
+        </div>
+
+        <SectionHeader title="Action Plan - empty and unavailable states" />
+        <div className="flex flex-col gap-3">
+          <Card>
+            <ActionEmptyState scanHref="#" />
+          </Card>
+          <Card>
+            <ActionUnavailableState kind="no_scan" scanHref="#" />
+          </Card>
+          <Card>
+            <ActionUnavailableState kind="processing" />
+          </Card>
+          <Card>
+            <ActionUnavailableState kind="partial" />
+          </Card>
+          <Card>
+            <ActionUnavailableState kind="failed" />
+          </Card>
+          <Card>
+            <ActionUnavailableState kind="no_matches" />
+          </Card>
         </div>
       </main>
       <Footer />

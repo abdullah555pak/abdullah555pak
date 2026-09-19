@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { REPORT_CATEGORIES, type ReportMeta } from "@/lib/report-types";
+import { ButtonLink } from "@/components/ui/Button";
 import { ReportHeader } from "@/components/report/ReportHeader";
 import { ReportNavigation, type ReportNavItem } from "@/components/report/ReportNavigation";
 import { ReportSection } from "@/components/report/ReportSection";
@@ -115,6 +116,11 @@ function ReportPageContent() {
             <ReportSection
               title="Action plan"
               description="A prioritized, step-by-step to-do list built from your results."
+              action={
+                <ButtonLink href={`/action-plan?url=${encodeURIComponent(url)}`} variant="secondary" size="sm">
+                  Open full action plan
+                </ButtonLink>
+              }
             >
               <PrioritySummary topIssues={[]} onSeeHowToFix={goToIssue} />
             </ReportSection>

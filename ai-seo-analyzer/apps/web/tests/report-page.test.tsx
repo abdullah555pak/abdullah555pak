@@ -79,5 +79,9 @@ describe("Report page (Category 02 Step 05 results dashboard)", () => {
 
     expect(screen.getByRole("heading", { name: /action plan/i })).toBeInTheDocument();
     expect(screen.getByText(/what should i fix first\?/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /open full action plan/i })).toHaveAttribute(
+      "href",
+      "/action-plan?url=example.com"
+    );
   });
 });
