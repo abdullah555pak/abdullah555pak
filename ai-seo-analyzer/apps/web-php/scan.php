@@ -30,10 +30,12 @@ require __DIR__ . '/includes/header.php';
       </div>
 
       <!--
-        This calls the real PHP backend at /api/analyze.php - the same
-        SSRF-safe URL validation as apps/api/app/core/security.py, and
-        the same honest 501 "not built yet" response - not a hardcoded
-        message. See includes/url-security.php and api/analyze.php.
+        This calls the real PHP backend at /api/analyze.php: SSRF-safe URL
+        validation (includes/url-security.php, src/Crawler/SsrfGuard.php),
+        then one real HTTP fetch of the approved URL
+        (src/Crawler/HttpFetcher.php). Every value rendered below comes
+        from that response, never a hardcoded/fake result - including
+        when the fetch itself fails after a URL passes validation.
       -->
       <div id="scan-result" role="alert" class="u-mt-2 u-text-center" style="max-width: 28rem; margin-left: auto; margin-right: auto;"></div>
     <?php endif; ?>
@@ -55,27 +57,67 @@ require __DIR__ . '/includes/header.php';
       return html;
     }
 
-    // A URL that passed validation but hits the "not built yet" wall is
-    // NOT the same situation as a rejected/blocked URL - conflating them
-    // under one "Unavailable"/error-looking message reads as if something
-    // went wrong with the user's website, when nothing did. This renders
-    // two clearly separate facts: (1) the URL was accepted, in a
-    // success/"good" tone, and (2) crawling itself doesn't exist yet, in
-    // a neutral/informational tone - never implying a real analysis ran.
-    function renderValidatedNotImplemented(normalizedUrl, message) {
+    // Every value below that can contain data from the *target* website
+    // (its final URL after redirects, its own Content-Type header) is
+    // escaped before going into innerHTML - a malicious site's own
+    // redirect target or response header is not something this page
+    // should ever be able to inject markup with.
+    function escapeHtml(value) {
+      var div = document.createElement('div');
+      div.textContent = value === null || value === undefined ? '' : String(value);
+      return div.innerHTML;
+    }
+
+    // Three genuinely different situations, kept visually and textually
+    // distinct so none of them reads as "something is wrong with your
+    // website" when that isn't true: (1) the URL itself was rejected
+    // (renderError/Blocked), (2) the URL was fine but we couldn't reach
+    // it right now (renderFetchFailure), (3) we reached it and got a real
+    // HTTP response (renderFetchSuccess) - which is still only raw
+    // connectivity/technical info, never an SEO analysis.
+    function renderFetchSuccess(fetchData, normalizedUrl, message) {
       statusEl.innerHTML =
-        '<span class="badge badge--good"><span class="badge__dot" aria-hidden="true"></span>URL validated</span>';
+        '<span class="badge badge--good"><span class="badge__dot" aria-hidden="true"></span>Connected</span>';
+
+      var finalUrl = fetchData.final_url || normalizedUrl;
+      var redirectNote = '';
+      if (fetchData.redirect_count > 0) {
+        redirectNote = '<p style="margin-top: 0.35rem; font-size: 0.8125rem; color: var(--color-ink-soft);">' +
+          'Your site redirected ' + escapeHtml(fetchData.redirect_count) +
+          (fetchData.redirect_count === 1 ? ' time' : ' times') +
+          ' to <strong>' + escapeHtml(finalUrl) + '</strong>.</p>';
+      }
+
       resultEl.innerHTML =
         '<h2 style="color: var(--color-good); font-size: 1.25rem; font-weight: 600; margin: 0;">' +
-        'Your URL was accepted and validated</h2>' +
+        'We successfully connected to your website</h2>' +
         '<p style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--color-ink-soft);">' +
-        'We checked <strong>' + normalizedUrl + '</strong> and confirmed it&rsquo;s a safe, ' +
-        'reachable public website address.</p>' +
+        'We reached <strong>' + escapeHtml(finalUrl) + '</strong> and received a real response.</p>' +
+        redirectNote +
         '<div class="card" style="margin-top: 1.5rem; text-align: left;">' +
-        '<span class="badge badge--gold"><span class="badge__dot" aria-hidden="true"></span>Crawler not implemented yet</span>' +
-        '<p style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--color-ink-soft);">' + message + '</p>' +
+        '<span class="badge badge--gold"><span class="badge__dot" aria-hidden="true"></span>Technical details only - not an analysis</span>' +
+        '<dl style="margin-top: 0.75rem; font-size: 0.8125rem; color: var(--color-ink-soft); display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 0.75rem;">' +
+        '<dt>HTTP status</dt><dd>' + escapeHtml(fetchData.status_code) + '</dd>' +
+        '<dt>Content type</dt><dd>' + escapeHtml(fetchData.content_type || 'Not reported') + '</dd>' +
+        '<dt>Response time</dt><dd>' + escapeHtml(fetchData.duration_ms) + ' ms</dd>' +
+        '</dl>' +
+        '<p style="margin-top: 0.75rem; font-size: 0.8125rem; color: var(--color-ink-soft);">' + escapeHtml(message) + '</p>' +
         '</div>' +
         actionButtons(normalizedUrl);
+    }
+
+    function renderFetchFailure(normalizedUrl, fetchData) {
+      statusEl.innerHTML =
+        '<span class="badge badge--critical"><span class="badge__dot" aria-hidden="true"></span>Couldn&rsquo;t connect</span>';
+      resultEl.innerHTML =
+        '<h2 style="color: var(--color-critical); font-size: 1.25rem; font-weight: 600; margin: 0;">' +
+        'We couldn&rsquo;t reach your website</h2>' +
+        '<p style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--color-ink-soft);">' +
+        'Your address' + (normalizedUrl ? ' (<strong>' + escapeHtml(normalizedUrl) + '</strong>)' : '') +
+        ' passed our safety checks, but we weren&rsquo;t able to connect to it.</p>' +
+        '<p style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--color-ink-soft);">' +
+        escapeHtml(fetchData.message || 'Please try again in a moment.') + '</p>' +
+        actionButtons(null);
     }
 
     function renderError(title, message, badgeText) {
@@ -97,12 +139,27 @@ require __DIR__ . '/includes/header.php';
         return res.json().then(function (body) { return { status: res.status, body: body }; });
       })
       .then(function (result) {
-        var message = (result.body && result.body.error && result.body.error.message) ||
+        var body = result.body || {};
+
+        if (result.status === 200 && body.fetch && body.fetch.success) {
+          renderFetchSuccess(body.fetch, body.normalized_url || url, body.message || '');
+          return;
+        }
+
+        // fetch.success === false covers both: (a) HttpFetcher itself
+        // couldn't reach the target (502) and (b) the rare case where
+        // HttpFetcher's own re-check disagrees with SsrfGuard's earlier
+        // pre-check (400) - see api/analyze.php. Both are "validated, but
+        // not reachable," not "rejected," so both render the same way.
+        if (body.fetch && body.fetch.success === false) {
+          renderFetchFailure(body.normalized_url || null, body.fetch);
+          return;
+        }
+
+        var message = (body.error && body.error.message) ||
           'Something went wrong. Please try again.';
 
-        if (result.status === 501) {
-          renderValidatedNotImplemented(result.body.normalized_url || url, message);
-        } else if (result.status === 400) {
+        if (result.status === 400) {
           renderError('This address can&rsquo;t be analyzed', message, 'Blocked');
         } else {
           renderError('Analysis failed', message, 'Failed');

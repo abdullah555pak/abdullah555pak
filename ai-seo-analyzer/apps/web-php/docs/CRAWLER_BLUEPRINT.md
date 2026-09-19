@@ -143,13 +143,24 @@ never depends on anything under `src/Crawler/`.
 **Step 02 status:** `UrlNormalizer.php`, `SsrfGuard.php`, `ValidationResult.php`,
 `RedirectProbeInterface.php` and `CurlRedirectProbe.php` now exist under
 `src/Crawler/`, plus a `tests/` directory (`FakeRedirectProbe.php` and
-`run-url-validation-tests.php`) — see §7 for what each does. Everything
-else in the tree above (`CrawlManager`, `RobotsTxtHandler`,
-`SitemapDiscovery`, `UrlQueue`, `HttpFetcher`, `HtmlParser`, `Storage/`,
-`workers/`, the two new `api/` endpoints, and the database schema in §4)
+`run-url-validation-tests.php`) — see §7 for what each does.
+
+**Step 03 status:** `HttpFetcher.php`, `HttpFetcherConfig.php`,
+`FetchResult.php`, `RetryPolicy.php`, `ContentTypeClassifier.php` and
+`UrlSafetyCheckerInterface.php` now also exist under `src/Crawler/` — see
+§12.1 for what each does. `tests/` gained `AllowlistUrlSafetyChecker.php`,
+`run-http-fetcher-tests.php`, and a `tests/support/fixture-router.php`
+local test server. `api/analyze.php` now performs one real HTTP fetch of
+the validated URL and returns structured status/content-type/timing
+information — it still returns no score, finding, or report, and it still
+does not start a background crawl (§17's `crawls`/`crawl_urls` tables and
+`workers/crawl-worker.php` remain unbuilt).
+
+Everything else in the tree above (`CrawlManager`, `RobotsTxtHandler`,
+`SitemapDiscovery`, `UrlQueue`, `HtmlParser`, `Storage/`, `workers/`, the
+two new polling/cancel `api/` endpoints, and the database schema in §4)
 remains unbuilt, exactly as this blueprint originally scoped for later
-steps. `api/analyze.php` still only validates and returns an honest 501 —
-it does not start a crawl.
+steps.
 
 ---
 
@@ -508,6 +519,105 @@ Built on `ext-curl`:
 - Parsing HTML is explicitly **not** this class's job — `HttpFetcher`
   hands a `HttpResponse` (status + headers + raw body) to `HtmlParser`;
   neither class knows about the other's internals.
+
+### 12.1 Step 03 implementation notes
+
+What was actually built, in `src/Crawler/`, and how it differs from the
+prose above now that there's no `CrawlManager` yet to own redirect
+following:
+
+- The result type is called `FetchResult`, not `HttpResponse` — chosen to
+  read clearly next to Step 02's `ValidationResult` (`valid`/`success`
+  follow the same pattern: a bool plus a `userMessage`-style field, never
+  a thrown exception for a normal non-2xx HTTP response).
+- With no `CrawlManager` built yet, `HttpFetcher` itself walks the
+  redirect chain (still capped at 5, still one hop at a time, still
+  `CURLOPT_FOLLOWLOCATION = false`) rather than a separate orchestrator
+  calling it once per hop. This is a Step 03 simplification, not a
+  reversal of §7's design — when `CrawlManager` exists, the natural change
+  is `CrawlManager` driving hop-by-hop calls into a `HttpFetcher` that
+  fetches exactly one URL and never follows anything itself; nothing in
+  today's `FetchResult` shape needs to change for that split to happen.
+- Every hop's safety check goes through a new `UrlSafetyCheckerInterface`
+  (production implementation: `DefaultUrlSafetyChecker`, a one-line
+  wrapper around `validate_public_url()`) rather than calling
+  `validate_public_url()` directly. This exists for exactly one reason:
+  letting `tests/run-http-fetcher-tests.php` point `HttpFetcher`'s real
+  curl/timeout/retry/redirect/size-cap logic at a real local test server,
+  whose loopback address production code must (and does) still reject.
+  The interface is never given any other implementation outside `tests/`.
+- Redirects are re-validated independently of Step 02's `SsrfGuard`, on
+  purpose: `SsrfGuard`'s own pre-check (§7) uses `CurlRedirectProbe`,
+  which sends `HEAD`, not `GET`. A server that only redirects on `GET`
+  would look safe to that pre-check and then behave differently here — so
+  `HttpFetcher` never treats "`SsrfGuard` already approved this" as a
+  reason to skip its own check on any hop, including the first.
+- One consequence worth knowing, not a bug: in the normal `api/analyze.php`
+  flow, `SsrfGuard` runs first and already fully walks the redirect chain
+  before `HttpFetcher` is ever called, so `HttpFetcher` is usually handed
+  an already-final URL — `fetch.redirect_count` in the API response
+  reflects only redirects `HttpFetcher` itself followed (typically 0), not
+  the total distance from the originally-submitted URL. Confirmed against
+  real sites during manual testing (e.g. submitting `google.com` returns
+  `normalized_url: https://www.google.com/` with `redirect_count: 0`,
+  because `SsrfGuard` already resolved that redirect earlier in the same
+  request).
+- Config lives in `HttpFetcherConfig`, readable from environment variables
+  (`HTTP_CONNECT_TIMEOUT`, `HTTP_REQUEST_TIMEOUT`, `HTTP_MAX_RESPONSE_BYTES`,
+  `HTTP_MAX_REDIRECTS`, `HTTP_MAX_RETRIES`, `HTTP_RETRY_BASE_DELAY_MS`,
+  `HTTP_MAX_RETRY_DELAY_MS`, `HTTP_MAX_TOTAL_DURATION`, `HTTP_USER_AGENT`)
+  via `getenv()` — no new dependency, consistent with Step 02's decision
+  not to introduce Composer yet. Defaults are deliberately tighter than
+  §10's table (5s connect / 15s request per attempt, not 15s/30s): this
+  fetch is synchronous — a browser's own `fetch()` to `api/analyze.php` is
+  waiting on it — unlike the background-worker crawl §10 was originally
+  sized for. A `HTTP_MAX_TOTAL_DURATION` (default 45s) wall-clock budget
+  was added across every hop and retry combined, which §10's table doesn't
+  have an equivalent for yet, specifically so a pathological chain (many
+  hops, each retried, each slow) still can't hold a synchronous request
+  open indefinitely.
+- Retry policy lives in `RetryPolicy`, matching §10/§11/§15's intent
+  (429/502/503/504 retryable, `Retry-After` honored and capped, a fixed
+  4xx or a security rejection never retried) but scoped per-hop, and with
+  every delay capped (`HTTP_MAX_RETRY_DELAY_MS`, default 3s) for the same
+  synchronous-request reason above — a background worker can afford to
+  honor a long `Retry-After`; a request a browser is waiting on cannot.
+- `api/analyze.php` never returns the fetched response body to the
+  browser — only structured metadata (status, content type, timing,
+  redirect/retry counts). §22/§23 ask this step to prove the fetch works,
+  not to display page content, and returning a target site's raw HTML
+  into `scan.php`'s existing `innerHTML`-based rendering without a reason
+  to would be an unnecessary opening for injected markup from a hostile
+  site to reach a visitor's browser. Every dynamic value `scan.php` *does*
+  render (final URL, content type) is HTML-escaped before insertion — see
+  `scan.php`'s `escapeHtml()`.
+
+### 12.2 Known limitations (not claimed to be perfect)
+
+- **DNS failure and TLS failure aren't exercised as live network
+  conditions in the automated suite.** Every real connection is pinned to
+  a pre-validated IP (`CURLOPT_RESOLVE`), so DNS resolution happens inside
+  the safety checker, not inside curl — genuinely reproducing a
+  curl-level DNS failure through the normal flow isn't really possible by
+  design, and standing up a second TLS-terminating server with a bad
+  certificate just for one test wasn't done this step. Both are instead
+  covered as direct, deterministic unit tests of the errno → `errorCode`
+  mapping (`HttpFetcher::classifyCurlError()`), and the "TLS verification
+  is never disabled" guarantee is enforced by a source-inspection
+  regression test rather than a live handshake failure.
+- **A five-hop redirect cap and a per-hop retry cap are heuristics**, the
+  same honest caveat Step 02 made about `SsrfGuard`'s own cap — they stop
+  unbounded chains and simple loops, not every conceivable shape of slow
+  or wasteful target.
+- **Compression is whatever curl's own build supports** (`CURLOPT_ENCODING
+  = ''` negotiates gzip/deflate, and brotli if curl was built with it) —
+  this project doesn't implement or verify support for any specific
+  algorithm beyond gzip, which the test suite does exercise.
+- **The response-size cap applies uniformly to every content type**, not
+  just HTML — simpler and safer, at the cost of capping a large legitimate
+  non-HTML file (e.g. a PDF) at the same limit as a page. Content-type-
+  specific limits are deferred until a real use for non-HTML content
+  exists.
 
 ---
 
